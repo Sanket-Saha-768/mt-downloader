@@ -117,8 +117,10 @@ def download(
     # ── Check for errors ──────────────────────────────────────────────────────
     if state.errors:
         dest.unlink(missing_ok=True)
-        first_err = next(iter(state.errors.values()))
-        raise RuntimeError(f"Download failed: {first_err}")
+        # first_err = next(iter(state.errors.values()))
+        # raise RuntimeError(f"Download failed: {first_err}")
+        msgs = "\n".join(str(e) for e in state.errors.values())
+        raise RuntimeError(f"Download failed:\n{msgs}")
 
     # ── Optional integrity check ───────────────────────────────────────────────
     if verify_md5:
@@ -137,4 +139,9 @@ def download(
         speed_mb,
         elapsed,
     )
+
+    if dest.stat().st_size != total_size:
+        raise RuntimeError(
+            f"File size mismatch: expected {total_size}, got {dest.stat().st_size}"
+        )
     return dest

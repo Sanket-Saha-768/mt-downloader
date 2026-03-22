@@ -34,6 +34,9 @@ def download_chunk(
         if state.cancel_event.is_set():
             log.warning("%s cancelled before attempt %d", chunk, attempt)
             return
+        
+        with state.lock:
+            state.progress[chunk.index] = 0
 
         try:
             req = Request(
@@ -45,9 +48,19 @@ def download_chunk(
             )
 
             with urlopen(req, timeout=timeout) as resp:
-                if resp.status not in (200, 206):
+                # if resp.status not in (200, 206):
+                if resp.status != 206:
                     # raise HTTPError(url, resp.status, "Unexpected status", {}, None)
-                    raise RuntimeError(f"Unexpected HTTP status: {resp.status}")
+                    raise RuntimeError(f"{chunk}: expected 206, got {resp.status}")
+                cr = resp.headers.get("Content-Range")
+                if cr:
+                    try:
+                        rng = cr.split()[1].split("/")[0]
+                        start, end = map(int, rng.split("-"))
+                        if start != chunk.start or end != chunk.end:
+                            raise ValueError(f"{chunk}: Content-Range mismatch")
+                    except Exception:
+                        raise ValueError(f"{chunk}: invalid Content-Range header")
                 # Open the shared output file for writing at the correct offset.
                 # Each thread writes to a disjoint region so no lock is needed
                 # for the write itself — but we do lock the progress counter.
@@ -72,6 +85,11 @@ def download_chunk(
                             state.progress[chunk.index] = state.progress.get(
                                 chunk.index, 0
                             ) + len(buf)
+                    
+                    if bytes_written != chunk.length:
+                        raise ValueError(
+                            f"{chunk}: wrote {bytes_written}, expected {chunk.length}"
+                        )
 
             log.info("Finished %s (%d B written)", chunk, bytes_written)
             return  # success
