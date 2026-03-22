@@ -66,7 +66,7 @@ def main() -> None:
     try:
         path = download(
             url=args.url,
-            dest=args.out,
+            out_path=args.out,
             n_threads=args.threads,
             retries=args.retries,
             timeout=args.timeout,
