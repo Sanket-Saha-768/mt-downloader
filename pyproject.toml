@@ -1,0 +1,15 @@
+[project]
+name = "mt-downloader"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+mt-downloader = "mt_downloader.main:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
