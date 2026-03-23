@@ -1,65 +1,89 @@
 # mt-downloader
 
-Multi-threaded chunked file downloader implemented in Python.
+Multi-threaded chunked file downloader implemented in Python as part of an Operating Systems course project.
 
-## 📌 Overview
-
-This project implements a **parallel file downloading system** using multiple threads, where each thread downloads a distinct byte range of a file using HTTP Range requests.
+This project implements parallel file downloading using multiple threads. Each thread downloads a disjoint byte range of a file using HTTP Range requests and writes directly to the correct offset in the output file.
 
 
-## ⚙️ Features
+## 🛠 Requirements
 
-- Multi-threaded downloading using HTTP `Range` headers
-- Dynamic chunk partitioning
-- Shared progress tracking with thread-safe updates
-- Retry mechanism with exponential backoff
-- HEAD → Range fallback for robust server probing
-- Integrity checks:
-  - Per-chunk completeness
-  - Final file size verification
-- Local testing using a Range-supporting HTTP server
+- Python 3.12+
+- uv (Python package manager)
 
----
 
-## 🧠 Design
 
-### Threading Model
+## ⚙️ Setup Instructions
 
-- One thread per chunk
-- Main thread orchestrates:
-  - probe → partition → spawn → join
-- Shared state protected via `threading.Lock`
-- Cancellation via `threading.Event`
+### 1. Clone the repository
 
----
+```bash
+git clone https://github.com/Sanket-Saha-768/mt-downloader.git
+cd mt-downloader
+```
 
-### File Writing Model
 
-- File is pre-allocated to total size
-- Each thread:
-  - seeks to its assigned offset
-  - writes its chunk directly
 
-> Note: This uses seek-based writes; correctness is ensured via disjoint chunk regions.
+### 2. Install uv (if not installed)
 
----
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
-### Network Model
+Verify:
 
-- Uses `urllib` (low-level control, no abstraction)
-- Supports:
-  - HEAD-based probing
-  - Fallback to `Range: bytes=0-0` probe
-- Enforces:
-  - HTTP 206 Partial Content
-  - Content-Range validation
+```bash
+uv --version
+```
 
----
+
+
+### 3. Install project dependencies
+
+```bash
+uv sync
+```
+
+
+
+## 🧪 Local Testing Setup
+
+Public servers are unreliable for Range requests, so we test using a local HTTP server.
+
+
+
+### 1. Create a test file
+
+```bash
+dd if=/dev/urandom of=test.bin bs=1M count=10
+```
+
+
+
+### 2. Start Range-supporting HTTP server (Terminal 1)
+
+```bash
+uv run python -m RangeHTTPServer 8000
+```
+
+Server will run at:
+
+```
+http://localhost:8000
+```
+
+
+
+### 3. Run downloader (Terminal 2)
+
+```bash
+uv run mt-downloader http://localhost:8000/test.bin -t 4
+```
+
+
 
 ## 📁 Project Structure
 
 ```
-
 mt-downloader/
 ├── src/mt_downloader/
 │   ├── main.py        # CLI entry
@@ -69,23 +93,20 @@ mt-downloader/
 │   ├── chunking.py    # Chunk partitioning
 │   ├── state.py       # Shared structures
 │   ├── monitor.py     # Progress tracking
-│   └── utils.py       # Helpers
+│   └── utils.py       # Helper functions
 │
 ├── tests/
 ├── pyproject.toml
 └── README.md
+```
 
-````
 
----
 
-## 🚀 Usage
-
-### Run downloader
+## ▶️ Usage
 
 ```bash
-uv run mt-downloader <url> -t <num_threads>
-````
+uv run mt-downloader <URL> -t <num_threads>
+```
 
 Example:
 
@@ -93,74 +114,40 @@ Example:
 uv run mt-downloader http://localhost:8000/test.bin -t 4
 ```
 
----
 
-## 🧪 Local Testing Setup
 
-Due to unreliable public servers, we recommend testing locally.
+## 🧠 Implementation Details
 
-### 1. Install dev dependency
+* Multi-threaded downloading using Python `threading`
+* HTTP Range requests (`bytes=start-end`)
+* Shared state protected via locks
+* Cooperative cancellation using events
+* Chunk-based partitioning of file
+* Retry mechanism with exponential backoff
+* HEAD → Range fallback for server probing
+* File pre-allocation and direct offset writes
 
-```bash
-uv add --dev rangehttpserver
-```
 
-### 2. Create test file
 
-```bash
-dd if=/dev/urandom of=test.bin bs=1M count=10
-```
+## 👨‍🏫 Instructor
 
-### 3. Start server
+* Prof. Ansuman Banerjee
 
-```bash
-uv run python -m RangeHTTPServer 8000
-```
 
-### 4. Run downloader
 
-```bash
-uv run mt-downloader http://localhost:8000/test.bin -t 4
-```
+## 🧑‍🏫 Teaching Assistants
 
----
+* Saumya Jaipuria
+* Satyam Shubham
 
-## ⚠️ Known Limitations
 
-* Uses `seek + write` (not fully atomic; acceptable for controlled environments)
-* No resumable downloads yet
-* Global cancellation on chunk failure (fail-fast strategy)
-* Limited HTTP edge-case handling (e.g., misbehaving servers)
-
----
-
-## 🔜 Future Improvements
-
-* Replace seek-based writes with `pwrite` / `mmap`
-* Thread pool with dynamic chunk scheduling
-* Resume support for interrupted downloads
-* Better fault tolerance (per-chunk recovery)
-* Bandwidth throttling
-
----
-
-## 📚 Learning Outcomes
-
-This project demonstrates:
-
-* Practical use of concurrency primitives
-* Interaction between network I/O and file systems
-* Real-world issues in distributed systems (unreliable servers, partial failures)
-* Importance of correctness over “it works on my machine”
-
----
 
 ## 👥 Team
 
-* Sanket Saha
-* [Teammate Name]
+* Sanket Saha - CS2425
+* Aniket Das - CS24
 
----
+
 
 ## 🏫 Course
 
