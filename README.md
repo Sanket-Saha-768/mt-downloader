@@ -1,6 +1,6 @@
 # mt-downloader
 
-Multi-threaded chunked file downloader implemented in Python as part of an Operating Systems course project.
+Multi-threaded chunked file downloader implemented in Python as part of our Operating Systems course project.
 
 This project implements parallel file downloading using multiple threads. Each thread downloads a disjoint byte range of a file using HTTP Range requests and writes directly to the correct offset in the output file.
 
@@ -48,8 +48,6 @@ uv sync
 ## 🧪 Local Testing Setup
 
 Public servers are unreliable for Range requests, so we test using a local HTTP server.
-
-
 
 ### 1. Create a test file
 
