@@ -127,20 +127,9 @@ uv run mt-downloader http://localhost:8000/test.bin -t 4
 * HEAD → Range fallback for server probing
 * File pre-allocation and direct offset writes
 
-
-
 ## 👨‍🏫 Instructor
 
 * Prof. Ansuman Banerjee
-
-
-
-## 🧑‍🏫 Teaching Assistants
-
-* Saumya Jaipuria
-* Satyam Shubham
-
-
 
 ## 👥 Team
 
