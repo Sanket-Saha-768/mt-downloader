@@ -26,6 +26,14 @@ class SharedState:
     cancel_event: threading.Event = field(default_factory=threading.Event)
 
     # per-chunk bytes downloaded so far (index -> int)
-    progress: dict = field(default_factory=dict)
-    errors: dict = field(default_factory=dict)  # index -> exception
+    progress: dict[int, int] = field(default_factory=dict)
+    errors: dict[int, list[Exception]] = field(default_factory=dict)  
     total_size: int = 0
+
+
+@dataclass
+class ServerInfo:
+    url:            str
+    total_size:     int
+    supports_range: bool
+    filename:       str

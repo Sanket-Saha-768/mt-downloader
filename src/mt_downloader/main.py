@@ -24,11 +24,11 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 log = logging.getLogger(__name__)
-
+MAX_THREADS = 64
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Multi-threaded chunked file downloader (OS project demo)"
+        description="Multi-threaded chunked file downloader"
     )
     parser.add_argument("url", help="URL to download")
     parser.add_argument(
@@ -36,7 +36,7 @@ def main() -> None:
         "-t",
         type=int,
         default=4,
-        help="Number of parallel download threads (default: 4)",
+        help=f"Parallel threads 1-{MAX_THREADS} (default: 4)",
     )
     parser.add_argument(
         "--out", "-o", default=None, help="Output filename (default: inferred from URL)"
@@ -58,19 +58,22 @@ def main() -> None:
         "--md5", default=None, help="Expected MD5 digest for integrity verification"
     )
     parser.add_argument("--verbose", "-v", action="store_true")
+    parser.add_argument("--sha256", default=None, help="Expected SHA-256 hex digest")
 
     args = parser.parse_args()
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
+    if not (1 <= args.threads <= MAX_THREADS):
+        parser.error(f"--threads must be between 1 and {MAX_THREADS}")
     try:
         path = download(
             url=args.url,
             out_path=args.out,
             n_threads=args.threads,
             retries=args.retries,
-            timeout=args.timeout,
             verify_md5=args.md5,
+            verify_sha256=args.sha256
         )
         print(f"\nSaved to: {path}")
     except (RuntimeError, ValueError) as exc:
