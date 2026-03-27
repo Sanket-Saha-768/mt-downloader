@@ -132,7 +132,7 @@ uv run mt-downloader http://localhost:8000/test.bin -t 4
 ## 👥 Team
 
 * Sanket Saha - CS2425
-* Aniket Das - CS24
+* Aniket Das - CS2407
 
 
 
