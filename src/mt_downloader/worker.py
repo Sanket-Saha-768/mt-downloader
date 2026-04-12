@@ -52,6 +52,7 @@ def _worker_range(
                 while True:
                     if state.cancel_event.is_set():
                         log.warning("%s cancelled mid-download", chunk)
+                        return
                     buf = resp.read(CHUNK_READ_SIZE) # what you hae to write
                     if not buf: #if emtpy - end loop
                         break

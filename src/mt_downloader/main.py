@@ -73,7 +73,7 @@ def main() -> None:
             n_threads=args.threads,
             retries=args.retries,
             verify_md5=args.md5,
-            verify_sha256=args.sha256
+            verify_sha256=args.sha256,
         )
         print(f"\nSaved to: {path}")
     except (RuntimeError, ValueError) as exc:

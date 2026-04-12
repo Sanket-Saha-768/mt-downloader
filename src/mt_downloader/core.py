@@ -52,8 +52,7 @@ def download(
 
     # Output path 
     if out_path is None:
-        name = Path(urlparse(url).path).name or "download"
-        dest = Path(name)
+        dest = Path(info.filename)
     else:
         dest = Path(out_path)
 
@@ -167,13 +166,7 @@ def download(
             f"File size mismatch: expected {total_size}, got {actual}"
         )
     
-    if verify_md5:
-        log.info("Verifying MD5 …")
-        digest = _md5_file(dest)
-        if digest != verify_md5:
-            dest.unlink(missing_ok=True)
-            raise ValueError(f"MD5 mismatch: expected {verify_md5}, got {digest}")
-        log.info("MD5 OK  (%s)", digest)
+    _verify_integrity(dest, verify_md5, verify_sha256)
 
     speed_mb = (total_size / elapsed) / 1_048_576
     log.info(
