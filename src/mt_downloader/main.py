@@ -18,6 +18,8 @@ Example:
 
 import logging, argparse, sys
 from mt_downloader.core import download
+from mt_downloader.monitor import setup_logging
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(threadName)-16s] %(levelname)s  %(message)s",
@@ -27,6 +29,7 @@ log = logging.getLogger(__name__)
 MAX_THREADS = 64
 
 def main() -> None:
+    console = setup_logging()
     parser = argparse.ArgumentParser(
         description="Multi-threaded chunked file downloader"
     )
@@ -57,12 +60,12 @@ def main() -> None:
     parser.add_argument(
         "--md5", default=None, help="Expected MD5 digest for integrity verification"
     )
-    parser.add_argument("--verbose", "-v", action="store_true")
+    parser.add_argument("--verbose", "-v", action="store_true", default=False)
     parser.add_argument("--sha256", default=None, help="Expected SHA-256 hex digest")
 
     args = parser.parse_args()
     if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+        setup_logging(verbose=True)
 
     if not (1 <= args.threads <= MAX_THREADS):
         parser.error(f"--threads must be between 1 and {MAX_THREADS}")

@@ -5,6 +5,7 @@ import re
 from urllib.parse import urlparse
 from pathlib import Path
 from typing import Optional
+import mimetypes
 
 log = logging.getLogger(__name__)
 USER_AGENT = "chunked-downloader/1.0"
@@ -14,15 +15,41 @@ CONNECT_TIMEOUT = 15  # seconds for initial TCP connect
 def _make_request(url: str, **extra_headers: str) -> Request:
     return Request(url, headers={"User-Agent": USER_AGENT, **extra_headers})
 
+
 def _filename_from_url(url: str) -> str:
     name = Path(urlparse(url).path).name
-    return name if name else "download"          # fix 16
- 
- 
+    return name if name else "download"  # fix 16
+
+
 def _filename_from_content_disposition(header: str) -> Optional[str]:
     # RFC 6266: Content-Disposition: attachment; filename="foo.bin"
     m = re.search(r'filename\*?=(?:UTF-8\'\')?["\']?([^"\';\r\n]+)', header, re.I)
-    return m.group(1).strip().strip('"\'') if m else None
+    return m.group(1).strip().strip("\"'") if m else None
+
+
+def _resolve_filename(url: str, content_disposition: str, content_type: str) -> str:
+    # Priority 1: Content-Disposition header
+    if content_disposition:
+        name = _filename_from_content_disposition(content_disposition)
+        if name:
+            return name
+
+    # Priority 2: URL path — only if it looks like a real filename (has an extension)
+    url_name = Path(urlparse(url).path).name
+    base = _filename_from_url(url)
+
+    # Priority 3: URL path with no extension — try to append one from Content-Type
+    if content_type:
+        mime = content_type.split(";")[0].strip()
+        # Skip useless types — octet-stream and html tell us nothing meaningful
+        if mime not in ("application/octet-stream", "text/html", ""):
+            ext = mimetypes.guess_extension(mime)
+            if ext:
+                return base + ext
+
+    # Priority 4: bare name, no extension — at least the bytes are correct
+    return base
+
 
 def probe_server(url: str, timeout: int = 15) -> ServerInfo:
     """
@@ -36,7 +63,7 @@ def probe_server(url: str, timeout: int = 15) -> ServerInfo:
     """
     total_size = 0
     supports_range = False
-    filename       = _filename_from_url(url)
+    filename = _filename_from_url(url)
 
     # ── Step 1: HEAD ─────────────────────────────────────
     try:
@@ -57,12 +84,12 @@ def probe_server(url: str, timeout: int = 15) -> ServerInfo:
             cl = hdrs.get("Content-Length", "").strip()
             ar = hdrs.get("Accept-Ranges", "none").strip().lower()
             cd = hdrs.get("Content-Disposition", "")
+            ct = hdrs.get("Content-Type", "")
             if cl.isdigit():
                 total_size = int(cl)
             if ar == "bytes":
                 supports_range = True
-            if cd:
-                filename = _filename_from_content_disposition(cd) or filename
+            filename = _resolve_filename(url, cd, ct)
 
     except Exception as exc:
         log.debug("HEAD failed (%s); trying range probe", exc)
@@ -71,7 +98,7 @@ def probe_server(url: str, timeout: int = 15) -> ServerInfo:
     # ── Step 2: Range probe if HEAD was insufficient
 
     if total_size == 0 or not supports_range:
-        try: 
+        try:
             req = _make_request(url, Range="bytes=0-0")
             with urlopen(req, timeout=CONNECT_TIMEOUT) as r:
                 # if resp.status != 206:
@@ -85,15 +112,13 @@ def probe_server(url: str, timeout: int = 15) -> ServerInfo:
                 # supports_range = True
                 if r.status == 206:
                     cr = r.headers.get("Content-Range", "")
-                    m  = re.match(r"bytes\s+\d+-\d+/(\d+)", cr)
+                    m = re.match(r"bytes\s+\d+-\d+/(\d+)", cr)
                     if m:
-                        total_size     = int(m.group(1))
+                        total_size = int(m.group(1))
                         supports_range = True
                         log.debug("Range probe ok: size=%d", total_size)
         except Exception as exc:
             log.debug("Range probe failed: %s", exc)
-
-
 
     if total_size == 0:
         raise RuntimeError(
