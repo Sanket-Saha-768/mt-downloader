@@ -1,10 +1,9 @@
 from mt_downloader.network import probe_server
 from mt_downloader.chunking import make_chunks, assert_no_overlap
 from mt_downloader.worker import _worker_range, _worker_single
-from mt_downloader.state import SharedState
+from mt_downloader.state import SharedState, ChunkSpec
 from mt_downloader.monitor import progress_monitor
-from mt_downloader.utils import _md5_file, _verify_integrity
-from urllib.parse import urlparse
+from mt_downloader.utils import _verify_integrity
 import threading, time
 from pathlib import Path
 import logging
@@ -71,7 +70,7 @@ def download(
         stop_monitor = threading.Event()
         monitor = threading.Thread(
             target=progress_monitor,
-            args=(state, total_size, stop_monitor),
+            args=(state, total_size, stop_monitor, [ChunkSpec(0, 0, max(total_size -1 , 0))]),
             daemon=True,
             name="ProgressMonitor",
         )
@@ -114,7 +113,7 @@ def download(
     stop_monitor = threading.Event()
     monitor = threading.Thread(
         target=progress_monitor,
-        args=(state, total_size, stop_monitor),
+        args=(state, total_size, stop_monitor, chunks),
         name="ProgressMonitor",
         daemon=True,
     )
