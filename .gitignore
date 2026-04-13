@@ -15,3 +15,4 @@ wheels/
 # logs / outputs
 *.log
 downloads/
+test_files/
