@@ -1,15 +1,52 @@
-import threading
+import threading, logging
 import time
 import sys
 from mt_downloader.state import SharedState, ChunkSpec
+from rich.progress import (
+    Progress,
+    BarColumn,
+    DownloadColumn,
+    TextColumn,
+    TimeRemainingColumn,
+    TransferSpeedColumn,
+    TaskID,
+)
+from rich.console import Console
+from rich.logging import RichHandler
 
-BAR_W   = 36          # consistent width for both modes
-ETA_WIN = 8.0         # seconds for sliding-window speed estimate
+log = logging.getLogger(__name__)
 
-_UP    = lambda n: f"\033[{n}A"
+
+def setup_logging(verbose: bool = False) -> Console:
+    """
+    Wire the root logger through Rich so that log lines printed by worker
+    threads appear above the progress bars without breaking the display.
+    Call this once from main() before creating the Progress context.
+    Returns the Console instance that monitor and logging both share.
+    """
+    console = Console(stderr=True)
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        format="%(message)s",
+        handlers=[
+            RichHandler(
+                console=console,
+                show_time=True,
+                show_path=False,
+                markup=False,
+            )
+        ],
+    )
+    return console
+
+
+BAR_W = 36  # consistent width for both modes
+ETA_WIN = 8.0  # seconds for sliding-window speed estimate
+
+_UP = lambda n: f"\033[{n}A"
 _ERASE = "\033[2K\r"
-_HIDE  = "\033[?25l"
-_SHOW  = "\033[?25h"
+_HIDE = "\033[?25l"
+_SHOW = "\033[?25h"
 
 
 class _SpeedTracker:
@@ -20,10 +57,11 @@ class _SpeedTracker:
     This avoids the "ETA jumps at the end" problem caused by using the
     cumulative average from t=0.
     """
+
     def __init__(self, window: float = ETA_WIN):
-        self._window  = window
-        self._samples: list[tuple[float, int]] = []   # (timestamp, cumulative_bytes)
-        self._lock    = threading.Lock()
+        self._window = window
+        self._samples: list[tuple[float, int]] = []  # (timestamp, cumulative_bytes)
+        self._lock = threading.Lock()
 
     def record(self, t: float, total_done: int) -> None:
         with self._lock:
@@ -56,118 +94,72 @@ def _fmt_eta(seconds: float) -> str:
 
 
 def progress_monitor(
-    state:  SharedState,
-    total:  int,
-    stop:   threading.Event,
+    state: SharedState,
+    total: int,
+    stop: threading.Event,
     chunks: list[ChunkSpec],
+    console: Console | None = None,
 ) -> None:
     """
-    Per-thread progress display.
-
-    TTY detection: checks sys.stderr.isatty(). If running under a process
-    that pipes stderr (e.g. pipeline.py redirected to a log), falls back
-    to simple line-by-line logging instead of broken \r output.
-
-    TTY mode — redraws N+2 lines in place every 0.4s:
-
-      Overall  [████████████░░░░░░░░░░░░░░░░░░░░░░░░]  42.3%  210.5/500.0 MB  1.2 MB/s  ETA  12s
-      ─────────────────────────────────────────────────────────────────────────
-      Thread 0  [████████████████████████████████████] 100.0%   125.0/125.0 MB  done
-      Thread 1  [███████████████░░░░░░░░░░░░░░░░░░░░░]  41.6%    52.0/125.0 MB  ...
-      Thread 2  [██████████████████████░░░░░░░░░░░░░░]  63.2%    79.0/125.0 MB  ...
-      Thread 3  [████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░]  21.6%    27.0/125.0 MB  ...
-
-    Non-TTY mode — emits one INFO log line every 5 seconds (readable in
-    redirected output / log files without flooding them).
+    Rich-based progress display with one bar per thread plus an overall bar.
     """
-    out       = sys.stderr
-    is_tty    = hasattr(out, "fileno") and out.isatty()
-    n         = len(chunks)
-    t0        = time.monotonic()
-    tracker   = _SpeedTracker()
+
+    if console is None:
+        console = Console(stderr=True)
+
     chunk_len = {c.index: c.length for c in chunks}
 
-    # ── Non-TTY: sparse log lines, no \r flood ────────────────────────────────
-    if not is_tty:
-        last_log = t0
-        LOG_INTERVAL = 5.0
-        while not stop.wait(0.5):
-            now = time.monotonic()
+    columns = [
+        TextColumn("[bold]{task.description:<12}"),
+        BarColumn(bar_width=36),
+        "[progress.percentage]{task.percentage:>5.1f}%",
+        DownloadColumn(),
+        TransferSpeedColumn(),
+        TimeRemainingColumn(),
+    ]
+
+    with Progress(*columns, console=console, refresh_per_second=4) as progress:
+
+        overall_id: TaskID = progress.add_task("Overall", total=total)
+        thread_ids: dict[int, TaskID] = {
+            c.index: progress.add_task(f"Thread {c.index}", total=c.length)
+            for c in sorted(chunks, key=lambda c: c.index)
+        }
+
+        prev_done: dict[int, int] = {idx: 0 for idx in chunk_len}
+        prev_total = 0
+
+        while not stop.wait(0.25):
             with state.lock:
-                done = sum(state.progress.values())
-            tracker.record(now, done)
-            if now - last_log >= LOG_INTERVAL:
-                pct   = done / total * 100 if total else 0
-                speed = tracker.speed_bps() / 1_048_576
-                eta   = (total - done) / tracker.speed_bps() if tracker.speed_bps() > 0 else 0
-                out.write(
-                    f"  progress: {pct:5.1f}%  "
-                    f"{done/1_048_576:.1f}/{total/1_048_576:.1f} MB  "
-                    f"{speed:.2f} MB/s  ETA {_fmt_eta(eta)}\n"
-                )
-                out.flush()
-                last_log = now
-        # Final line
-        with state.lock:
-            done = sum(state.progress.values())
-        pct = done / total * 100 if total else 0
-        out.write(f"  progress: {pct:5.1f}%  {done/1_048_576:.1f}/{total/1_048_576:.1f} MB  complete\n")
-        out.flush()
-        return
+                snap = dict(state.progress)
 
-    # ── TTY: per-thread redraws ───────────────────────────────────────────────
-    total_lines = n + 2     # overall line + divider + N thread rows
+            # Advance each thread bar by the delta since last tick
+            for idx, task_id in thread_ids.items():
+                current = snap.get(idx, 0)
+                delta = current - prev_done[idx]
+                if delta > 0:
+                    progress.advance(task_id, delta)
+                    prev_done[idx] = current
 
-    out.write(_HIDE)
-    out.write("\n" * total_lines)
-    out.flush()
+                # Mark errored chunks visibly
+                if idx in state.errors:
+                    progress.update(task_id, description=f"[red]Thread {idx}[/red]")
 
-    def _redraw(snap: dict[int, int]) -> None:
-        now  = time.monotonic()
-        done = sum(snap.values())
-        tracker.record(now, done)
+            # Advance overall bar
+            total_done = sum(snap.values())
+            overall_delta = total_done - prev_total
+            if overall_delta > 0:
+                progress.advance(overall_id, overall_delta)
+                prev_total = total_done
 
-        pct   = done / total if total else 0
-        speed = tracker.speed_bps()
-        eta   = (total - done) / speed if speed > 0 else 0
-        smb   = speed / 1_048_576
-
-        lines: list[str] = []
-        lines.append(
-            f"  Overall  [{_bar(pct)}] {pct*100:5.1f}%  "
-            f"{done/1_048_576:6.1f}/{total/1_048_576:.1f} MB  "
-            f"{smb:.2f} MB/s  ETA {_fmt_eta(eta)}"
-        )
-        lines.append("  " + "─" * (BAR_W + 46))
-
-        for c in sorted(chunks, key=lambda c: c.index):
-            cdone  = snap.get(c.index, 0)
-            ctotal = chunk_len[c.index]
-            cpct   = cdone / ctotal if ctotal else 0
-            if c.index in state.errors:
-                status = "ERR"
-            elif cdone >= ctotal:
-                status = "done"
-            else:
-                status = "..."
-            lines.append(
-                f"  Thread {c.index:<2} [{_bar(cpct)}] {cpct*100:5.1f}%  "
-                f"{cdone/1_048_576:6.1f}/{ctotal/1_048_576:.1f} MB  {status}"
-            )
-
-        out.write(_UP(total_lines))
-        for line in lines:
-            out.write(f"{_ERASE}{line}\n")
-        out.flush()
-
-    while not stop.wait(0.4):
+        # Final sync — fill any remaining delta after stop is set
         with state.lock:
             snap = dict(state.progress)
-        _redraw(snap)
-
-    with state.lock:
-        snap = dict(state.progress)
-    _redraw(snap)
-
-    out.write(_SHOW)
-    out.flush()
+        for idx, task_id in thread_ids.items():
+            delta = snap.get(idx, 0) - prev_done[idx]
+            if delta > 0:
+                progress.advance(task_id, delta)
+        total_done = sum(snap.values())
+        final_delta = total_done - prev_total
+        if final_delta > 0:
+            progress.advance(overall_id, final_delta)
