@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 import threading
 
+
 @dataclass
 class ChunkSpec:
     index: int  # chunk number (0-based)
@@ -27,13 +28,13 @@ class SharedState:
 
     # per-chunk bytes downloaded so far (index -> int)
     progress: dict[int, int] = field(default_factory=dict)
-    errors: dict[int, list[Exception]] = field(default_factory=dict)  
+    errors: dict[int, list[Exception]] = field(default_factory=dict)
     total_size: int = 0
 
 
 @dataclass
 class ServerInfo:
-    url:            str
-    total_size:     int
+    url: str
+    total_size: int
     supports_range: bool
-    filename:       str
+    filename: str

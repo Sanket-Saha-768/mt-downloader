@@ -18,27 +18,26 @@ def _make_request(url: str, **extra_headers: str) -> Request:
 
 def _filename_from_url(url: str) -> str:
     name = Path(urlparse(url).path).name
-    return name if name else "download"  # fix 16
+    return name if name else "download"
 
 
 def _filename_from_content_disposition(header: str) -> Optional[str]:
-    # RFC 6266: Content-Disposition: attachment; filename="foo.bin"
     m = re.search(r'filename\*?=(?:UTF-8\'\')?["\']?([^"\';\r\n]+)', header, re.I)
     return m.group(1).strip().strip("\"'") if m else None
 
 
 def _resolve_filename(url: str, content_disposition: str, content_type: str) -> str:
-    # Priority 1: Content-Disposition header
+    # Content-Disposition header
     if content_disposition:
         name = _filename_from_content_disposition(content_disposition)
         if name:
             return name
 
-    # Priority 2: URL path — only if it looks like a real filename (has an extension)
+    # URL path — only if it looks like a real filename (has an extension)
     url_name = Path(urlparse(url).path).name
     base = _filename_from_url(url)
 
-    # Priority 3: URL path with no extension — try to append one from Content-Type
+    # URL path with no extension — try to append one from Content-Type
     if content_type:
         mime = content_type.split(";")[0].strip()
         # Skip useless types — octet-stream and html tell us nothing meaningful
@@ -47,7 +46,7 @@ def _resolve_filename(url: str, content_disposition: str, content_type: str) -> 
             if ext:
                 return base + ext
 
-    # Priority 4: bare name, no extension — at least the bytes are correct
+    # proxy name, no extension — at least the bytes are correct
     return base
 
 
@@ -69,16 +68,6 @@ def probe_server(url: str, timeout: int = 15) -> ServerInfo:
     try:
         req = _make_request(url)
         req.method = "HEAD"
-        # with urlopen(req, timeout=timeout) as resp:
-        #     headers = resp.headers
-        #     cl = headers.get("Content-Length")
-        #     ar = headers.get("Accept-Ranges", "").lower()
-
-        #     if cl and cl.isdigit():
-        #         total_size = int(cl)
-
-        #     if ar == "bytes":
-        #         supports_range = True
         with urlopen(req, timeout=CONNECT_TIMEOUT) as r:
             hdrs = r.headers
             cl = hdrs.get("Content-Length", "").strip()
@@ -93,7 +82,7 @@ def probe_server(url: str, timeout: int = 15) -> ServerInfo:
 
     except Exception as exc:
         log.debug("HEAD failed (%s); trying range probe", exc)
-        pass  # fallback below
+        # fallback handled in step 2
 
     # ── Step 2: Range probe if HEAD was insufficient
 
@@ -101,15 +90,7 @@ def probe_server(url: str, timeout: int = 15) -> ServerInfo:
         try:
             req = _make_request(url, Range="bytes=0-0")
             with urlopen(req, timeout=CONNECT_TIMEOUT) as r:
-                # if resp.status != 206:
-                #     raise RuntimeError("Server does not support range requests")
 
-                # cr = resp.headers.get("Content-Range")
-                # if not cr or "/" not in cr:
-                #     raise RuntimeError("Invalid Content-Range header")
-
-                # total_size = int(cr.split("/")[-1])
-                # supports_range = True
                 if r.status == 206:
                     cr = r.headers.get("Content-Range", "")
                     m = re.match(r"bytes\s+\d+-\d+/(\d+)", cr)

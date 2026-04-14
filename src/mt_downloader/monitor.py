@@ -1,6 +1,4 @@
 import threading, logging
-import time
-import sys
 from mt_downloader.state import SharedState, ChunkSpec
 from rich.progress import (
     Progress,
@@ -21,7 +19,6 @@ def setup_logging(verbose: bool = False) -> Console:
     """
     Wire the root logger through Rich so that log lines printed by worker
     threads appear above the progress bars without breaking the display.
-    Call this once from main() before creating the Progress context.
     Returns the Console instance that monitor and logging both share.
     """
     console = Console(stderr=True)
@@ -38,59 +35,6 @@ def setup_logging(verbose: bool = False) -> Console:
         ],
     )
     return console
-
-
-BAR_W = 36  # consistent width for both modes
-ETA_WIN = 8.0  # seconds for sliding-window speed estimate
-
-_UP = lambda n: f"\033[{n}A"
-_ERASE = "\033[2K\r"
-_HIDE = "\033[?25l"
-_SHOW = "\033[?25h"
-
-
-class _SpeedTracker:
-    """
-    Sliding-window speed estimator.
-    Keeps a fixed-duration window of (timestamp, bytes_done) samples
-    and computes speed from the oldest to newest point in that window.
-    This avoids the "ETA jumps at the end" problem caused by using the
-    cumulative average from t=0.
-    """
-
-    def __init__(self, window: float = ETA_WIN):
-        self._window = window
-        self._samples: list[tuple[float, int]] = []  # (timestamp, cumulative_bytes)
-        self._lock = threading.Lock()
-
-    def record(self, t: float, total_done: int) -> None:
-        with self._lock:
-            self._samples.append((t, total_done))
-            cutoff = t - self._window
-            self._samples = [(ts, b) for ts, b in self._samples if ts >= cutoff]
-
-    def speed_bps(self) -> float:
-        """Bytes per second over the sliding window. Returns 0 if not enough data."""
-        with self._lock:
-            if len(self._samples) < 2:
-                return 0.0
-            t0, b0 = self._samples[0]
-            t1, b1 = self._samples[-1]
-            dt = t1 - t0
-            return (b1 - b0) / dt if dt > 0 else 0.0
-
-
-def _bar(pct: float, width: int = BAR_W) -> str:
-    filled = int(width * pct)
-    return "█" * filled + "░" * (width - filled)
-
-
-def _fmt_eta(seconds: float) -> str:
-    if seconds <= 0 or seconds > 3600:
-        return "  --"
-    if seconds < 60:
-        return f"{seconds:4.0f}s"
-    return f"{seconds/60:4.1f}m"
 
 
 def progress_monitor(

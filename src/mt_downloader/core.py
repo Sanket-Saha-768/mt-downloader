@@ -9,6 +9,7 @@ from pathlib import Path
 import logging
 import os
 import shutil
+
 log = logging.getLogger(__name__)
 
 
@@ -49,7 +50,7 @@ def download(
 
     log.info("File size: %s bytes | threads: %d", f"{total_size:,}", n_threads)
 
-    # Output path 
+    # Output path
     if out_path is None:
         dest = Path(info.filename)
     else:
@@ -60,7 +61,7 @@ def download(
     free = shutil.disk_usage(dest.parent).free
     if free < total_size:
         raise RuntimeError(f"Not enough disk space: need {total_size}, have {free}")
-    
+
     if not supports_ranges or n_threads == 1:
         log.info("Single-thread mode (no Range support)")
 
@@ -70,7 +71,12 @@ def download(
         stop_monitor = threading.Event()
         monitor = threading.Thread(
             target=progress_monitor,
-            args=(state, total_size, stop_monitor, [ChunkSpec(0, 0, max(total_size -1 , 0))]),
+            args=(
+                state,
+                total_size,
+                stop_monitor,
+                [ChunkSpec(0, 0, max(total_size - 1, 0))],
+            ),
             daemon=True,
             name="ProgressMonitor",
         )
@@ -112,7 +118,6 @@ def download(
     # Partition
     chunks = make_chunks(total_size, n_threads)
     assert_no_overlap(chunks, total_size)
-
 
     # Shared file descriptor and state
     out_fd = os.open(dest, os.O_RDWR)
@@ -159,8 +164,6 @@ def download(
     # Error Handling
     if state.errors:
         dest.unlink(missing_ok=True)
-        # first_err = next(iter(state.errors.values()))
-        # raise RuntimeError(f"Download failed: {first_err}")
         msgs = [
             f"chunk[{idx}]: " + "; ".join(str(e) for e in errs)
             for idx, errs in state.errors.items()
@@ -172,10 +175,8 @@ def download(
     actual = dest.stat().st_size
     if actual != total_size:
         dest.unlink(missing_ok=True)
-        raise RuntimeError(
-            f"File size mismatch: expected {total_size}, got {actual}"
-        )
-    
+        raise RuntimeError(f"File size mismatch: expected {total_size}, got {actual}")
+
     _verify_integrity(dest, verify_md5, verify_sha256)
 
     speed_mb = (total_size / elapsed) / 1_048_576

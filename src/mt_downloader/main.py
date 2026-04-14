@@ -1,19 +1,9 @@
 """
 Multi-threaded chunked file downloader
 ======================================
-OS course project — demonstrates:
-    - Thread creation and lifecycle management
-    - Shared state with Locks (progress counters)
-    - Thread synchronization with Barrier (assemble only after all chunks done)
-    - Inter-thread signalling with Event (cancellation)
-    - Seek-based in-place file assembly (no extra temp files needed)
-    - Range requests (HTTP/1.1 Accept-Ranges: bytes)
-
 Usage:
     uv run mt-downloader  <url> [--threads N] [--out filename]
 
-Example:
-    uv run mt-downloader https://speed.hetzner.de/100MB.bin --threads 8
 """
 
 import logging, argparse, sys
@@ -28,8 +18,8 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 MAX_THREADS = 64
 
+
 def main() -> None:
-    console = setup_logging()
     parser = argparse.ArgumentParser(
         description="Multi-threaded chunked file downloader"
     )
@@ -82,6 +72,7 @@ def main() -> None:
     except (RuntimeError, ValueError) as exc:
         print(f"\nError: {exc}", file=sys.stderr)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
