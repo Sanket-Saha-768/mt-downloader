@@ -76,15 +76,26 @@ def download(
         )
         monitor.start()
 
+        t_start_1 = time.monotonic()
         _worker_single(url, dest, state, retries)
 
         stop_monitor.set()
         monitor.join()
+        elapsed_1 = time.monotonic() - t_start_1
 
         if state.errors:
             errs = [str(e) for el in state.errors.values() for e in el]
             raise RuntimeError("Download failed:\n" + "\n".join(errs))
         _verify_integrity(dest, verify_md5, verify_sha256)
+
+        speed_mb_1 = (total_size / elapsed_1) / 1_048_576 if elapsed_1 > 0 else 0
+        log.info(
+            "Done: %s  %.2f MB  %.2f MB/s  %.1fs",
+            dest,
+            total_size / 1_048_576,
+            speed_mb_1,
+            elapsed_1,
+        )
         return dest
 
     # ── Pre-allocate output file ──────────────────────────────────────────────

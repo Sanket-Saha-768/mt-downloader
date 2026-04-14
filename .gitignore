@@ -14,5 +14,7 @@ wheels/
 
 # logs / outputs
 *.log
+*.avi
+*.mp4
 downloads/
 test_files/
