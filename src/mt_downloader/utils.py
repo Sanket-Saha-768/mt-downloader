@@ -6,6 +6,14 @@ import logging
 log = logging.getLogger(__name__)
 
 
+def _md5_file(path: Path) -> str:
+    h = hashlib.md5()
+    with open(path, "rb") as fh:
+        while buf := fh.read(1 << 20):
+            h.update(buf)
+    return h.hexdigest()
+
+
 def _hash_file(path: Path, algo: str) -> str:
     h = hashlib.new(algo)
     with open(path, "rb") as fh:
