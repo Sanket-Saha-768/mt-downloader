@@ -1,6 +1,6 @@
 # mt-downloader
 
-Multi-threaded chunked file downloader implemented in Python as part of our Operating Systems course project.
+Multi-threaded chunked file downloader implemented in Python as part of our Operating Systems course project at the Indian Statistical Institute, Kolkata.
 
 This project implements parallel file downloading using multiple threads. Each thread downloads a disjoint byte range of a file using HTTP Range requests and writes directly to the correct offset in the output file.
 
@@ -57,7 +57,7 @@ dd if=/dev/urandom of=test.bin bs=1M count=10
 
 
 
-### 2. Start Range-supporting HTTP server (Terminal 1)
+### 2. Start Range-supporting HTTP server in the folder containing the dummy test file (Terminal 1)
 
 ```bash
 uv run python -m RangeHTTPServer 8000
@@ -112,8 +112,25 @@ Example:
 uv run mt-downloader http://localhost:8000/test.bin -t 4
 ```
 
+## 🎬 Test Files (Large File Downloads)
+ 
+Large test assets to test the downloader are stored in a separate public repository (uploaded using [Git-LFS](https://git-lfs.com)) at
+**[https://github.com/Sanket-Saha-768/mt-downloader-testfiles](https://github.com/Sanket-Saha-768/mt-downloader-testfiles)**
+ 
+> **Important:** Please use the `raw` URL, not the `blob` URL - simply changing `blob` to `raw` after copying the URL should suffice.
+> GitHub's `blob` URL serves an HTML preview page — the downloader needs the actual file bytes.
+>
+> ❌ `https://github.com/.../blob/main/Abhijan.1962.SD.avi`
+> ✅ `https://github.com/.../raw/main/Abhijan.1962.SD.avi`
 
-
+### Download a test file
+ 
+```bash
+uv run mt-downloader \
+  "https://github.com/Sanket-Saha-768/mt-downloader-testfiles/raw/main/Abhijan.1962.SD.avi" \
+  --threads 8 \
+  --out Abhijan.1962.SD.avi
+```
 ## 🧠 Implementation Details
 
 * Multi-threaded downloading using Python `threading`
@@ -121,8 +138,7 @@ uv run mt-downloader http://localhost:8000/test.bin -t 4
 * Shared state protected via locks
 * Cooperative cancellation using events
 * Chunk-based partitioning of file
-* Retry mechanism with exponential backoff
-* HEAD → Range fallback for server probing
+* Retry mechanism
 * File pre-allocation and direct offset writes
 
 ## 👨‍🏫 Instructor
