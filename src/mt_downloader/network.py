@@ -34,7 +34,6 @@ def _resolve_filename(url: str, content_disposition: str, content_type: str) -> 
             return name
 
     # URL path — only if it looks like a real filename (has an extension)
-    url_name = Path(urlparse(url).path).name
     base = _filename_from_url(url)
 
     # URL path with no extension — try to append one from Content-Type
