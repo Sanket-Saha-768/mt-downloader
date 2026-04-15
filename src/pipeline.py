@@ -102,7 +102,7 @@ def main() -> None:
         print(f"Error reading links file: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Pipeline starting — {len(urls)} file(s) to download, {args.threads} thread(s) each.\n")
+    print(f"PIPELINE starting — {len(urls)} file(s) to download, {args.threads} thread(s) each.\n")
 
     # Run downloads one at a time so output stays clean.
     results: list[tuple[str, bool]] = []
